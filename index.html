@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BioCycle: The Decomposer Ultimate</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* === CSS STYLING === */
+        :root {
+            --primary: #4CAF50;
+            --danger: #f44336;
+            --info: #2196F3;
+            --soil-dark: #3E2723;
+            --soil-light: #5D4037;
+            --text-light: #FFF;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            font-family: 'Fredoka', sans-serif;
+        }
+
+        body, html {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--soil-dark);
+            touch-action: none; 
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: filter 0.3s;
+        }
+
+        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        #gameCanvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+        }
+
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 20;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: radial-gradient(circle, var(--soil-light) 0%, var(--soil-dark) 100%);
+            transition: opacity 0.3s ease;
+        }
+
+        .hidden { display: none !important; }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.95); padding: 1.5rem; border-radius: 1.5rem;
+            text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 90vw; max-width: 400px;
+        }
+
+        .panel h1 { color: var(--soil-dark); font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .panel h2 { color: var(--info); font-size: 1.4rem; margin-bottom: 1rem; }
+        .panel p { color: #555; margin-bottom: 1rem; font-size: 0.9rem; }
+
+        input[type="text"] {
+            width: 100%; padding: 0.8rem; margin-bottom: 0.8rem; border: 2px solid var(--soil-light);
+            border-radius: 0.8rem; font-size: 1.1rem; text-align: center; outline: none;
+        }
+        input[type="text"]:focus { border-color: var(--primary); }
+
+        button {
+            width: 100%; padding: 0.8rem; margin-bottom: 0.5rem; background-color: var(--primary);
+            color: white; border: none; border-radius: 0.8rem; font-size: 1.1rem; font-weight: 600;
+            cursor: pointer; box-shadow: 0 4px 0 #388E3C; transition: transform 0.1s, box-shadow 0.1s;
+        }
+        button:active { transform: translateY(4px); box-shadow: 0 0 0 #388E3C; }
+        button.btn-secondary { background-color: #FF9800; box-shadow: 0 4px 0 #E65100; }
+        button.btn-danger { background-color: var(--danger); box-shadow: 0 4px 0 #b71c1c; }
+
+        #hud {
+            position: absolute; top: 0; left: 0; width: 100vw; padding: 0.5rem;
+            display: flex; justify-content: space-between; align-items: flex-start; z-index: 15;
+            pointer-events: none;
+        }
+
+        .hud-side { display: flex; flex-direction: column; gap: 0.5rem; width: 48%; }
+        
+        .hud-box {
+            background: rgba(0,0,0,0.6); color: white; padding: 0.5rem; border-radius: 0.8rem;
+            font-size: 0.9rem; pointer-events: auto; border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .powerup-container {
+            display: flex; justify-content: space-between; gap: 5px; margin-top: 5px;
+        }
+
+        .btn-powerup {
+            flex: 1; padding: 0.3rem; background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: #000; border: none; border-radius: 0.3rem; font-weight: bold; font-size: 0.8rem;
+            cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .btn-powerup.disabled { background: #555; color: #888; cursor: not-allowed; pointer-events: none; }
+        .btn-powerup.active { box-shadow: 0 0 10px #00ffff, inset 0 0 5px #00ffff; }
+
+        .health-bar-container {
+            width: 100%; height: 12px; background: #fff; border-radius: 10px; overflow: hidden; margin-top: 3px;
+        }
+        #health-fill { height: 100%; width: 100%; background: var(--primary); transition: width 0.3s, background-color 0.3s; }
+        #vs-health-fill { height: 100%; width: 100%; background: var(--info); transition: width 0.3s; }
+
+        #level-up-toast {
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
+            background: linear-gradient(45deg, #FFD700, #FFA500); color: #000; padding: 1rem 2rem;
+            border-radius: 2rem; font-size: 1.5rem; font-weight: 700; opacity: 0; z-index: 30;
+            pointer-events: none; transition: all 0.5s; text-align: center;
+        }
+        #level-up-toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
+        th, td { padding: 0.4rem; border-bottom: 1px solid #ddd; }
+        th { background: var(--soil-light); color: white; border-radius: 0.2rem;}
+        .winner-row { background-color: rgba(76, 175, 80, 0.2); font-weight: bold; }
+
+        /* Shield Effect */
+        #game-container.shield-active { border: 5px solid #00BCD4; border-radius: 10px; box-shadow: inset 0 0 30px #00BCD4; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    
+    <!-- UI: Loading Auth -->
+    <div id="screen-loading" class="ui-layer">
+        <div class="panel">
+            <h1>🌱 BioCycle</h1>
+            <p>Menghubungkan ke Server...</p>
+        </div>
+    </div>
+
+    <!-- UI: Layar Login -->
+    <div id="screen-login" class="ui-layer hidden">
+        <div class="panel">
+            <h1>🌱 BioCycle</h1>
+            <p>Pisahkan Sampah, Selamatkan Tanah!</p>
+            <input type="text" id="input-name" placeholder="Masukkan Nama Anda" autocomplete="off" maxlength="15">
+            <button id="btn-solo">MAIN SENDIRI (SOLO)</button>
+            <button id="btn-multi" class="btn-secondary">MAIN BERDUA (VERSUS)</button>
+        </div>
+    </div>
+
+    <!-- UI: Lobby Versus -->
+    <div id="screen-lobby" class="ui-layer hidden">
+        <div class="panel">
+            <h2>Mode Versus 1v1</h2>
+            <p>Pilih peran Anda untuk bermain dengan teman.</p>
+            <button id="btn-host">BUAT ROOM (HOST)</button>
+            <hr style="margin: 1rem 0; border:1px solid #ddd;">
+            <input type="text" id="input-room-code" placeholder="Masukkan Kode Room" maxlength="6" style="text-transform: uppercase;">
+            <button id="btn-join" class="btn-secondary">GABUNG ROOM</button>
+            <br><br>
+            <button id="btn-back-lobby" class="btn-danger">KEMBALI</button>
+        </div>
+    </div>
+
+    <!-- UI: Waiting Room -->
+    <div id="screen-waiting" class="ui-layer hidden">
+        <div class="panel">
+            <h2>Menunggu Lawan...</h2>
+            <p>Berikan kode ini ke teman Anda:</p>
+            <h1 id="display-room-code" style="font-size: 3rem; letter-spacing: 5px; color: var(--info);">----</h1>
+            <br>
+            <button id="btn-cancel-wait" class="btn-danger">BATAL</button>
+        </div>
+    </div>
+
+    <!-- UI: HUD Gameplay -->
+    <div id="screen-hud" class="hidden">
+        <div id="hud">
+            <!-- Player Kiri (Diri Sendiri) -->
+            <div class="hud-side">
+                <div class="hud-box">
+                    <div id="hud-name" style="color:var(--primary); font-weight:bold;">Pemain: -</div>
+                    <div id="hud-score">Skor: 0</div>
+                    <div id="hud-level">Rank: Warrior</div>
+                    <div style="font-size: 0.7rem; margin-top:2px;">Kesehatan Tanah</div>
+                    <div class="health-bar-container"><div id="health-fill"></div></div>
+                    
+                    <div class="powerup-container">
+                        <button id="btn-pu-1" class="btn-powerup" title="Sapu Jagat">🧹</button>
+                        <button id="btn-pu-2" class="btn-powerup" title="Waktu Beku">❄️</button>
+                        <button id="btn-pu-3" class="btn-powerup" title="Perisai">🛡️</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player Kanan (Lawan - Muncul Jika Versus) -->
+            <div id="vs-hud-container" class="hud-side hidden" style="align-items: flex-end;">
+                <div class="hud-box" style="text-align: right;">
+                    <div id="vs-hud-name" style="color:var(--danger); font-weight:bold;">Lawan: -</div>
+                    <div id="vs-hud-score">Skor: 0</div>
+                    <div id="vs-hud-level">Rank: Warrior</div>
+                    <div style="font-size: 0.7rem; margin-top:2px;">Kesehatan Tanah</div>
+                    <div class="health-bar-container" style="direction: rtl;"><div id="vs-health-fill"></div></div>
+                    <div id="vs-hud-status" style="font-size: 0.7rem; color: yellow; margin-top:5px;">Status: Bermain</div>
+                </div>
+            </div>
+        </div>
+        <div id="level-up-toast">RANK UP!<br><small style="font-size:1rem;"></small></div>
+    </div>
+
+    <!-- UI: Layar Game Over -->
+    <div id="screen-gameover" class="ui-layer hidden">
+        <div class="panel" style="max-height: 90vh; overflow-y: auto;">
+            <h1 id="go-title">Game Over! 🥀</h1>
+            <p id="go-subtitle">Skor Akhir Anda: <strong id="final-score" style="font-size: 1.5rem; color: var(--primary);">0</strong></p>
+            
+            <div id="solo-leaderboard-container">
+                <h3>Top 5 Solo Leaderboard</h3>
+                <table id="leaderboard-table">
+                    <thead><tr><th>No</th><th>Nama</th><th>Skor</th><th>Rank</th></tr></thead>
+                    <tbody id="leaderboard-body"></tbody>
+                </table>
+            </div>
+
+            <div id="vs-leaderboard-container" class="hidden">
+                <h3>Hasil Versus</h3>
+                <table id="vs-table">
+                    <thead><tr><th>Pemain</th><th>Skor</th><th>Rank</th><th>Status</th></tr></thead>
+                    <tbody id="vs-body"></tbody>
+                </table>
+            </div>
+
+            <div id="vs-waiting-msg" class="hidden" style="color:var(--danger); margin-bottom: 10px;">Menunggu lawan selesai bermain...</div>
+
+            <button id="btn-restart" class="hidden">KEMBALI KE MENU</button>
+        </div>
+    </div>
+
+    <!-- Canvas Gameplay -->
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script type="module">
+    /**
+     * ==========================================
+     * INISIALISASI FIREBASE & AUTHENTICATION
+     * ==========================================
+     */
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-analytics.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyCx_MyWjsv674htX3hc6-W5eJF-qxBKTNU",
+        authDomain: "biocycle-app-2da5d.firebaseapp.com",
+        projectId: "biocycle-app-2da5d",
+        storageBucket: "biocycle-app-2da5d.firebasestorage.app",
+        messagingSenderId: "371656111541",
+        appId: "1:371656111541:web:63065aadb2d564d85815fc",
+        measurementId: "G-BCBWY3XQ6H"
+    };
+    
+    const appId = 'biocycle-edu-game'; // Identifier aplikasi untuk struktur koleksi di Firestore
+    
+    let app, analytics, auth, db, currentUser = null;
+    
+    try {
+        app = initializeApp(firebaseConfig);
+        analytics = getAnalytics(app);
+        auth = getAuth(app);
+        db = getFirestore(app);
+    } catch (e) {
+        console.warn("Firebase Init Error (Running Offline Mode fallback):", e);
+    }
+
+    // Auth Workflow (Mandatory)
+    async function initAuth() {
+        if(!auth) return;
+        try {
+            // Coba login dengan token environment terlebih dahulu (jika ada)
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } catch (customTokenError) {
+                    console.warn("Custom token mismatch (menggunakan project eksternal). Fallback ke signInAnonymously.");
+                    // Fallback jika token bawaan tidak cocok dengan firebaseConfig milik user
+                    await signInAnonymously(auth);
+                }
+            } else {
+                // Langsung login anonim jika tidak ada token bawaan
+                await signInAnonymously(auth);
+            }
+        } catch (error) {
+            console.error("Auth Error:", error);
+        }
+    }
+
+    onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        if(user) {
+            document.getElementById('screen-loading').classList.add('hidden');
+            document.getElementById('screen-login').classList.remove('hidden');
+        }
+    });
+
+    // Mulai Auth saat script dimuat
+    initAuth();
+
+
+    /**
+     * ==========================================
+     * STATE MANAGEMENT & VARIABEL GAME
+     * ==========================================
+     */
+    const STATES = { LOGIN: 'LOGIN', LOBBY: 'LOBBY', WAITING: 'WAITING', PLAYING: 'PLAYING', GAMEOVER: 'GAMEOVER' };
+    let currentState = STATES.LOGIN;
+
+    // Variabel Player (Lokal)
+    let playerName = "";
+    let score = 0;
+    let level = 1;
+    let health = 100;
+    
+    // Variabel Multiplayer
+    let isMultiplayer = false;
+    let matchCode = null;
+    let playerRole = null; // 'host' atau 'guest'
+    let unsubscribeMatch = null;
+    let syncInterval = null;
+    let vsOpponentName = "-";
+    let vsOpponentScore = 0;
+    let vsOpponentRank = "Warrior";
+    let vsOpponentHealth = 100;
+    let vsOpponentStatus = "playing"; // playing, gameover
+
+    // Sistem Rank 1-10
+    const RANKS = ["Warrior", "Elite", "Master", "Grandmaster", "Epic", "Legend", "Mythic", "Mythical Honor", "Mythical Glory", "Legendary"];
+
+    // Variabel Gameplay & Power-ups
+    let animationFrameId, lastTime = 0, spawnTimer = 0;
+    let activeItems = [], particles = [], draggedItem = null;
+    
+    // Status Power-Up
+    let puSapuUsed = false;
+    let puBekuUsed = false;
+    let puPerisaiUsed = false;
+    let speedMultiplier = 1.0; // Untuk Waktu Beku
+    let isShieldActive = false; // Untuk Perisai Tanah
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('game-container');
+
+    // Database Sampah
+    const wasteItems = [
+        { name: "Kulit Pisang", type: "organic", icon: "🍌", difficulty: 1 },
+        { name: "Sisa Apel", type: "organic", icon: "🍎", difficulty: 1 },
+        { name: "Daun Kering", type: "organic", icon: "🍂", difficulty: 1 },
+        { name: "Botol Plastik", type: "anorganic", icon: "🍾", difficulty: 1 },
+        { name: "Kaleng Minuman", type: "anorganic", icon: "🥫", difficulty: 1 },
+        { name: "Gelas Plastik", type: "anorganic", icon: "🥤", difficulty: 1 },
+        
+        { name: "Koran Bekas", type: "organic", icon: "📰", difficulty: 2 },
+        { name: "Tulang Ayam", type: "organic", icon: "🍗", difficulty: 2 },
+        { name: "Kardus Bekas", type: "organic", icon: "📦", difficulty: 2 },
+        { name: "Baterai Bekas", type: "anorganic", icon: "🔋", difficulty: 2 },
+        { name: "Bungkus Snack", type: "anorganic", icon: "🍬", difficulty: 2 },
+        { name: "Klip Kertas", type: "anorganic", icon: "📎", difficulty: 2 },
+
+        { name: "Styrofoam", type: "anorganic", icon: "🥡", difficulty: 3 },
+        { name: "Kaca Pecah", type: "anorganic", icon: "🥃", difficulty: 3 },
+        { name: "Cangkang Telur", type: "organic", icon: "🥚", difficulty: 3 },
+        { name: "Kantong Teh", type: "organic", icon: "🍵", difficulty: 3 },
+        { name: "Tisu Basah", type: "anorganic", icon: "🧻", difficulty: 3 },
+        { name: "Baju Bekas", type: "anorganic", icon: "👕", difficulty: 3 }
+    ];
+
+    const gameConfig = {
+        baseFallSpeed: 2, baseSpawnRate: 1500,
+        levelThresholds: { 2:100, 3:250, 4:450, 5:700, 6:1000, 7:1400, 8:1900, 9:2500, 10:3500 }
+    };
+
+    /**
+     * ==========================================
+     * LOGIKA MENU & MULTIPLAYER (FIREBASE)
+     * ==========================================
+     */
+    function showScreen(screenId) {
+        document.querySelectorAll('.ui-layer').forEach(el => el.classList.add('hidden'));
+        if(screenId) document.getElementById(screenId).classList.remove('hidden');
+    }
+
+    // Solo Mode
+    document.getElementById('btn-solo').addEventListener('click', () => {
+        playerName = document.getElementById('input-name').value.trim();
+        if(!playerName) return alert("Masukkan Nama Anda!");
+        isMultiplayer = false;
+        startLocalGame();
+    });
+
+    // Versus Menu
+    document.getElementById('btn-multi').addEventListener('click', () => {
+        playerName = document.getElementById('input-name').value.trim();
+        if(!playerName) return alert("Masukkan Nama Anda!");
+        if(!currentUser) return alert("Belum terhubung ke server. Pastikan internet menyala.");
+        showScreen('screen-lobby');
+    });
+
+    document.getElementById('btn-back-lobby').addEventListener('click', () => showScreen('screen-login'));
+
+    // Host Room
+    document.getElementById('btn-host').addEventListener('click', async () => {
+        matchCode = Math.floor(1000 + Math.random() * 9000).toString(); // 4 digit angka
+        playerRole = 'host';
+        
+        try {
+            const matchRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), matchCode);
+            await setDoc(matchRef, {
+                status: 'waiting',
+                hostId: currentUser.uid, hostName: playerName, hostScore: 0, hostRank: 'Warrior', hostHealth: 100, hostStatus: 'waiting',
+                guestId: '', guestName: '', guestScore: 0, guestRank: 'Warrior', guestHealth: 100, guestStatus: 'waiting'
+            });
+
+            document.getElementById('display-room-code').innerText = matchCode;
+            showScreen('screen-waiting');
+            listenToMatch();
+        } catch (e) {
+            alert("Gagal membuat room: " + e.message);
+        }
+    });
+
+    // Join Room
+    document.getElementById('btn-join').addEventListener('click', async () => {
+        const code = document.getElementById('input-room-code').value.trim().toUpperCase();
+        if(!code) return alert("Masukkan Kode Room!");
+        
+        try {
+            const matchRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), code);
+            const docSnap = await getDoc(matchRef);
+            
+            if (docSnap.exists() && docSnap.data().status === 'waiting') {
+                matchCode = code;
+                playerRole = 'guest';
+                
+                await updateDoc(matchRef, {
+                    status: 'playing',
+                    guestId: currentUser.uid, guestName: playerName, guestStatus: 'playing', hostStatus: 'playing'
+                });
+                
+                listenToMatch();
+            } else {
+                alert("Room tidak ditemukan atau sudah penuh.");
+            }
+        } catch (e) {
+            alert("Gagal bergabung: " + e.message);
+        }
+    });
+
+    document.getElementById('btn-cancel-wait').addEventListener('click', () => {
+        if(unsubscribeMatch) unsubscribeMatch();
+        showScreen('screen-lobby');
+    });
+
+    // Sinkronisasi Firebase
+    function listenToMatch() {
+        if(!currentUser || !matchCode) return;
+        const matchRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), matchCode);
+        
+        unsubscribeMatch = onSnapshot(matchRef, (docSnap) => {
+            if (!docSnap.exists()) return;
+            const data = docSnap.data();
+
+            // Host menunggu Guest -> Mulai game saat status berubah ke 'playing'
+            if (currentState === STATES.WAITING || currentState === STATES.LOGIN || currentState === STATES.LOBBY) {
+                if (data.status === 'playing') {
+                    isMultiplayer = true;
+                    // Ambil nama lawan
+                    vsOpponentName = playerRole === 'host' ? data.guestName : data.hostName;
+                    document.getElementById('vs-hud-name').innerText = vsOpponentName;
+                    document.getElementById('vs-hud-container').classList.remove('hidden');
+                    startLocalGame();
+                }
+            }
+
+            // Update UI saat Gameplay/Gameover
+            if (currentState === STATES.PLAYING || currentState === STATES.GAMEOVER) {
+                // Ambil data lawan berdasarkan role kita
+                if (playerRole === 'host') {
+                    vsOpponentScore = data.guestScore;
+                    vsOpponentRank = data.guestRank;
+                    vsOpponentHealth = data.guestHealth;
+                    vsOpponentStatus = data.guestStatus;
+                } else {
+                    vsOpponentScore = data.hostScore;
+                    vsOpponentRank = data.hostRank;
+                    vsOpponentHealth = data.hostHealth;
+                    vsOpponentStatus = data.hostStatus;
+                }
+
+                // Update HUD Lawan
+                document.getElementById('vs-hud-score').innerText = `Skor: ${vsOpponentScore}`;
+                document.getElementById('vs-hud-level').innerText = `Rank: ${vsOpponentRank}`;
+                document.getElementById('vs-health-fill').style.width = `${Math.max(0, vsOpponentHealth)}%`;
+                
+                let statusText = vsOpponentStatus === 'gameover' ? '☠️ Mati' : '🟢 Bermain';
+                document.getElementById('vs-hud-status').innerText = `Status: ${statusText}`;
+
+                // Cek Evaluasi Akhir (Jika dua-duanya gameover)
+                if (currentState === STATES.GAMEOVER && vsOpponentStatus === 'gameover') {
+                    document.getElementById('vs-waiting-msg').classList.add('hidden');
+                    document.getElementById('btn-restart').classList.remove('hidden');
+                    renderVersusResult();
+                }
+            }
+        }, (error) => console.error("Snapshot error:", error));
+    }
+
+    // Push local data ke Firebase tiap 1 detik (agar tidak hit limit)
+    function startSync() {
+        if(syncInterval) clearInterval(syncInterval);
+        syncInterval = setInterval(async () => {
+            if (!isMultiplayer || !matchCode || !currentUser) return;
+            
+            const matchRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), matchCode);
+            const updatePayload = {};
+            
+            if (playerRole === 'host') {
+                updatePayload.hostScore = score;
+                updatePayload.hostRank = RANKS[level-1];
+                updatePayload.hostHealth = health;
+                updatePayload.hostStatus = (health <= 0) ? 'gameover' : 'playing';
+            } else {
+                updatePayload.guestScore = score;
+                updatePayload.guestRank = RANKS[level-1];
+                updatePayload.guestHealth = health;
+                updatePayload.guestStatus = (health <= 0) ? 'gameover' : 'playing';
+            }
+            
+            try { await updateDoc(matchRef, updatePayload); } 
+            catch (e) { console.error("Sync fail", e); }
+
+        }, 1000);
+    }
+
+    /**
+     * ==========================================
+     * GAME ENGINE & LOGIC
+     * ==========================================
+     */
+    function startLocalGame() {
+        currentState = STATES.PLAYING;
+        score = 0; level = 1; health = 100;
+        activeItems = []; particles = []; lastTime = 0; spawnTimer = 0;
+        
+        // Reset Powerups
+        puSapuUsed = false; puBekuUsed = false; puPerisaiUsed = false;
+        speedMultiplier = 1.0; isShieldActive = false;
+        document.querySelectorAll('.btn-powerup').forEach(btn => btn.classList.remove('disabled', 'active'));
+        container.classList.remove('shield-active');
+
+        // Update UI Sendiri
+        document.getElementById('hud-name').innerText = `Pemain: ${playerName}`;
+        document.getElementById('hud-score').innerText = `Skor: 0`;
+        document.getElementById('hud-level').innerText = `Rank: Warrior`;
+        updateHealthBar();
+
+        if(!isMultiplayer) document.getElementById('vs-hud-container').classList.add('hidden');
+
+        showScreen('screen-hud');
+        
+        if (isMultiplayer) startSync();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function checkLevelUp() {
+        let newLevel = level;
+        for (let i = 10; i >= 2; i--) {
+            if (score >= gameConfig.levelThresholds[i]) { newLevel = i; break; }
+        }
+
+        if (newLevel > level) {
+            level = newLevel;
+            document.getElementById('hud-level').innerText = `Rank: ${RANKS[level-1]}`;
+            
+            const toast = document.getElementById('level-up-toast');
+            toast.innerHTML = `RANK UP!<br><small style="font-size:1rem;">${RANKS[level-1]}</small>`;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+    }
+
+    function spawnItem() {
+        let maxDifficulty = 1;
+        if (level >= 7) maxDifficulty = 3;
+        else if (level >= 4) maxDifficulty = 2;
+
+        const availableItems = wasteItems.filter(item => item.difficulty <= maxDifficulty);
+        const selectedWaste = availableItems[Math.floor(Math.random() * availableItems.length)];
+        
+        const size = window.innerWidth > 600 ? 70 : 50; 
+        const minX = size; const maxX = canvas.width - size;
+        const randomX = Math.random() * (maxX - minX) + minX;
+        
+        // Hitung base speed dan aplikasikan speedMultiplier (pengaruh waktu beku)
+        const currentFallSpeed = gameConfig.baseFallSpeed + (level * 0.35);
+
+        activeItems.push({
+            id: Date.now() + Math.random(), x: randomX, y: -50, size: size,
+            baseSpeed: currentFallSpeed, // Simpan speed asli
+            data: selectedWaste, isDragging: false
+        });
+    }
+
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+    window.dispatchEvent(new Event('resize'));
+
+    function updateHealthBar() {
+        document.getElementById('health-fill').style.width = `${Math.max(0, health)}%`;
+        const fillColor = health > 60 ? 'var(--primary)' : health > 30 ? '#FF9800' : 'var(--danger)';
+        document.getElementById('health-fill').style.backgroundColor = fillColor;
+    }
+
+    function createParticles(x, y, isCorrect) {
+        const color = isCorrect ? ['#4CAF50', '#8BC34A', '#2196F3'] : ['#f44336', '#9C27B0', '#795548'];
+        for(let i=0; i<15; i++) {
+            particles.push({
+                x: x, y: y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
+                life: 1.0, color: color[Math.floor(Math.random() * color.length)], size: Math.random() * 8 + 4
+            });
+        }
+    }
+
+    function drawZones() {
+        const zoneHeight = canvas.height * 0.25; 
+        const yPos = canvas.height - zoneHeight;
+        
+        // Tong Anorganik (Kiri - Merah)
+        ctx.fillStyle = 'rgba(244, 67, 54, 0.3)';
+        ctx.fillRect(0, yPos, canvas.width / 2, zoneHeight);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = 'bold 20px Fredoka'; ctx.textAlign = 'center';
+        ctx.fillText("♻️ ANORGANIK", canvas.width / 4, yPos + zoneHeight/2);
+
+        // Biopori/Kompos (Kanan - Hijau)
+        ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
+        ctx.fillRect(canvas.width / 2, yPos, canvas.width / 2, zoneHeight);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillText("🌱 ORGANIK", (canvas.width / 4) * 3, yPos + zoneHeight/2);
+        
+        ctx.beginPath(); ctx.moveTo(canvas.width/2, yPos); ctx.lineTo(canvas.width/2, canvas.height);
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 4; ctx.setLineDash([10, 10]);
+        ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    function gameLoop(timestamp) {
+        if (currentState !== STATES.PLAYING) return;
+        if (!lastTime) lastTime = timestamp;
+        const deltaTime = timestamp - lastTime; lastTime = timestamp;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawZones();
+
+        // Spawn timer
+        spawnTimer += deltaTime;
+        // Waktu spawn juga terpengaruh multiplier waktu beku
+        const currentSpawnRate = Math.max(500, gameConfig.baseSpawnRate - (level * 80)) / speedMultiplier; 
+        
+        if (spawnTimer >= currentSpawnRate) {
+            spawnItem();
+            spawnTimer = 0;
+        }
+
+        // Logic Items
+        for (let i = activeItems.length - 1; i >= 0; i--) {
+            let item = activeItems[i];
+
+            if (!item.isDragging) {
+                item.y += (item.baseSpeed * speedMultiplier);
+            }
+
+            ctx.font = `${item.size}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 5;
+            ctx.fillText(item.data.icon, item.x, item.y);
+            ctx.shadowBlur = 0;
+
+            // Miss
+            if (item.y > canvas.height + item.size) {
+                if (!isShieldActive) {
+                    health -= 5;
+                    updateHealthBar();
+                    container.classList.add('shake');
+                    setTimeout(() => container.classList.remove('shake'), 400);
+                }
+                activeItems.splice(i, 1);
+                if (health <= 0) doGameOver();
+            }
+        }
+
+        // Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+
+            if (p.life <= 0) particles.splice(i, 1);
+            else {
+                ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    /**
+     * ==========================================
+     * KONTROL (DRAG AND DROP)
+     * ==========================================
+     */
+    function handleStart(e) {
+        if (currentState !== STATES.PLAYING) return;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        for (let i = activeItems.length - 1; i >= 0; i--) {
+            let item = activeItems[i];
+            const dist = Math.hypot(item.x - clientX, item.y - clientY);
+            if (dist < item.size) {
+                draggedItem = item; item.isDragging = true; break;
+            }
+        }
+    }
+
+    function handleMove(e) {
+        if (currentState !== STATES.PLAYING || !draggedItem) return;
+        draggedItem.x = e.touches ? e.touches[0].clientX : e.clientX;
+        draggedItem.y = e.touches ? e.touches[0].clientY : e.clientY;
+    }
+
+    function handleEnd() {
+        if (currentState !== STATES.PLAYING || !draggedItem) return;
+
+        const dropY = canvas.height * 0.75;
+        if (draggedItem.y > dropY) {
+            const isLeft = draggedItem.x < canvas.width / 2;
+            const expectedSide = draggedItem.data.type === 'anorganic';
+
+            if (isLeft === expectedSide) {
+                score += 10;
+                document.getElementById('hud-score').innerText = `Skor: ${score}`;
+                createParticles(draggedItem.x, draggedItem.y, true);
+                checkLevelUp();
+            } else {
+                if(!isShieldActive) {
+                    health -= 15;
+                    updateHealthBar();
+                    container.classList.add('shake');
+                    setTimeout(() => container.classList.remove('shake'), 400);
+                }
+                createParticles(draggedItem.x, draggedItem.y, false);
+                if (health <= 0) doGameOver();
+            }
+
+            const index = activeItems.indexOf(draggedItem);
+            if (index > -1) activeItems.splice(index, 1);
+        }
+
+        draggedItem.isDragging = false; draggedItem = null;
+    }
+
+    canvas.addEventListener('touchstart', handleStart, {passive: false});
+    canvas.addEventListener('touchmove', handleMove, {passive: false});
+    canvas.addEventListener('touchend', handleEnd);
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+
+    /**
+     * ==========================================
+     * POWER UPS
+     * ==========================================
+     */
+    // 1. Sapu Jagat
+    document.getElementById('btn-pu-1').addEventListener('click', () => {
+        if (puSapuUsed || currentState !== STATES.PLAYING) return;
+        puSapuUsed = true;
+        const btn = document.getElementById('btn-pu-1'); btn.classList.add('disabled');
+        
+        if (activeItems.length > 0) {
+            activeItems.forEach(item => { score += 10; createParticles(item.x, item.y, true); });
+            activeItems = [];
+            health = Math.min(100, health + 20); updateHealthBar();
+            document.getElementById('hud-score').innerText = `Skor: ${score}`;
+            checkLevelUp();
+            container.style.filter = "brightness(2)";
+            setTimeout(() => { container.style.filter = "none"; }, 300);
+        }
+    });
+
+    // 2. Waktu Beku (5 Detik)
+    document.getElementById('btn-pu-2').addEventListener('click', () => {
+        if (puBekuUsed || currentState !== STATES.PLAYING) return;
+        puBekuUsed = true;
+        const btn = document.getElementById('btn-pu-2'); 
+        btn.classList.add('disabled', 'active');
+        
+        speedMultiplier = 0.2; // Perlambat 80%
+        setTimeout(() => {
+            speedMultiplier = 1.0;
+            btn.classList.remove('active');
+        }, 5000);
+    });
+
+    // 3. Perisai Tanah (10 Detik)
+    document.getElementById('btn-pu-3').addEventListener('click', () => {
+        if (puPerisaiUsed || currentState !== STATES.PLAYING) return;
+        puPerisaiUsed = true;
+        isShieldActive = true;
+        const btn = document.getElementById('btn-pu-3'); 
+        btn.classList.add('disabled', 'active');
+        container.classList.add('shield-active');
+        
+        setTimeout(() => {
+            isShieldActive = false;
+            btn.classList.remove('active');
+            container.classList.remove('shield-active');
+        }, 10000);
+    });
+
+    /**
+     * ==========================================
+     * GAME OVER & LEADERBOARD
+     * ==========================================
+     */
+    function doGameOver() {
+        currentState = STATES.GAMEOVER;
+        cancelAnimationFrame(animationFrameId);
+        document.getElementById('final-score').innerText = score;
+        
+        showScreen('screen-gameover');
+
+        if (isMultiplayer) {
+            // Urus UI Versus
+            document.getElementById('solo-leaderboard-container').classList.add('hidden');
+            document.getElementById('vs-leaderboard-container').classList.remove('hidden');
+            document.getElementById('btn-restart').classList.add('hidden');
+            
+            // Tunggu sinkronisasi firebase selesai, vsOpponentStatus akan ditangkap di listener
+            if (vsOpponentStatus === 'playing') {
+                document.getElementById('vs-waiting-msg').classList.remove('hidden');
+            } else {
+                renderVersusResult();
+            }
+        } else {
+            // Solo Mode
+            document.getElementById('solo-leaderboard-container').classList.remove('hidden');
+            document.getElementById('vs-leaderboard-container').classList.add('hidden');
+            document.getElementById('btn-restart').classList.remove('hidden');
+            updateSoloLeaderboard();
+        }
+    }
+
+    function updateSoloLeaderboard() {
+        let records = JSON.parse(localStorage.getItem('biocycle_solo_rank')) || [];
+        if (score > 0) {
+            records.push({ name: playerName, score: score, rank: RANKS[level-1] });
+            records.sort((a, b) => b.score - a.score);
+            records = records.slice(0, 5);
+            localStorage.setItem('biocycle_solo_rank', JSON.stringify(records));
+        }
+
+        const tbody = document.getElementById('leaderboard-body');
+        tbody.innerHTML = '';
+        records.forEach((rec, index) => {
+            tbody.innerHTML += `<tr><td>${index + 1}</td><td>${rec.name}</td><td><strong>${rec.score}</strong></td><td>${rec.rank}</td></tr>`;
+        });
+    }
+
+    function renderVersusResult() {
+        document.getElementById('vs-waiting-msg').classList.add('hidden');
+        document.getElementById('btn-restart').classList.remove('hidden');
+        
+        const tbody = document.getElementById('vs-body');
+        
+        let myRowClass = score > vsOpponentScore ? 'winner-row' : '';
+        let oppRowClass = vsOpponentScore > score ? 'winner-row' : '';
+        let title = score > vsOpponentScore ? "Anda Menang! 🎉" : score < vsOpponentScore ? "Anda Kalah! 🥀" : "Seri! 🤝";
+        
+        document.getElementById('go-title').innerText = title;
+
+        tbody.innerHTML = `
+            <tr class="${myRowClass}">
+                <td>${playerName} (Anda)</td><td><strong>${score}</strong></td><td>${RANKS[level-1]}</td><td>${score > vsOpponentScore ? 'WIN' : 'LOSE'}</td>
+            </tr>
+            <tr class="${oppRowClass}">
+                <td>${vsOpponentName}</td><td><strong>${vsOpponentScore}</strong></td><td>${vsOpponentRank}</td><td>${vsOpponentScore > score ? 'WIN' : 'LOSE'}</td>
+            </tr>
+        `;
+        
+        // Bersihkan interval & listener
+        if(syncInterval) clearInterval(syncInterval);
+        if(unsubscribeMatch) unsubscribeMatch();
+    }
+
+    // Tombol Restart / Main Lagi
+    document.getElementById('btn-restart').addEventListener('click', () => {
+        isMultiplayer = false; // Reset mode
+        if(syncInterval) clearInterval(syncInterval);
+        if(unsubscribeMatch) unsubscribeMatch();
+        showScreen('screen-login');
+    });
+
+</script>
+</body>
+</html>
